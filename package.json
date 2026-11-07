@@ -1,0 +1,20 @@
+{
+  "name": "valeditor",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "gen:i18n": "node scripts/gen-i18n-messages.mjs"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
+  }
+}
