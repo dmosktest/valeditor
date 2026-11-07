@@ -105,6 +105,29 @@ export function lintGitlabCi(input: string): LintResult {
         detail: key,
       });
     }
+    const scripts: string[] = [];
+    if (typeof value.script === "string") scripts.push(value.script);
+    if (Array.isArray(value.script)) {
+      for (const s of value.script) {
+        if (typeof s === "string") scripts.push(s);
+      }
+    }
+    if (scripts.some((s) => /curl\s+.*\|\s*(?:ba)?sh/i.test(s) || /wget\s+.*\|\s*(?:ba)?sh/i.test(s))) {
+      issues.push({
+        id: nextId(),
+        severity: "warning",
+        code: "glCurlPipe",
+        detail: key,
+      });
+    }
+    if (value.allow_failure === true) {
+      issues.push({
+        id: nextId(),
+        severity: "info",
+        code: "glAllowFailure",
+        detail: key,
+      });
+    }
   }
 
   if (jobCount === 0 && !("include" in root)) {

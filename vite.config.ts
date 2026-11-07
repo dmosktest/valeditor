@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
+import { buildAiBriefMarkdown, buildRulesMarkdown } from "./src/docs-pack";
+import { renderErrorsHtml } from "./src/errors-page";
 import {
   localizeIndexHtml,
   renderNotFoundHtml,
@@ -252,6 +254,32 @@ function emitLangPages(): Plugin {
 
       fs.writeFileSync(path.join(dist, "sitemap.xml"), renderSitemapXml(), "utf8");
       fs.writeFileSync(path.join(dist, "robots.txt"), renderRobotsTxt(), "utf8");
+
+      const docsDir = path.join(dist, "docs");
+      fs.mkdirSync(docsDir, { recursive: true });
+      for (const loc of ["ru", "en"] as const) {
+        fs.writeFileSync(
+          path.join(docsDir, `valeditor-rules.${loc}.md`),
+          buildRulesMarkdown(loc, pkg.version),
+          "utf8",
+        );
+        fs.writeFileSync(
+          path.join(docsDir, `valeditor-ai-brief.${loc}.md`),
+          buildAiBriefMarkdown(loc, pkg.version),
+          "utf8",
+        );
+      }
+
+      for (const locale of LOCALES) {
+        const errDir = path.join(dist, locale, "errors");
+        fs.mkdirSync(errDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(errDir, "index.html"),
+          renderErrorsHtml(locale),
+          "utf8",
+        );
+      }
+
       emitLocaleManifests(dist);
       emitServiceWorker(dist);
     },

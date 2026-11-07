@@ -23,6 +23,16 @@ flags:
   feature: on
 `,
     },
+    {
+      id: "json-dup",
+      labelKey: "exampleJsonDup",
+      text: `{
+  "name": "api",
+  "port": 8080,
+  "name": "gateway"
+}
+`,
+    },
   ],
   docker: [
     {
@@ -50,6 +60,18 @@ services:
       - 80
 `,
     },
+    {
+      id: "dockerfile-sock",
+      labelKey: "exampleDockerSock",
+      text: `services:
+  builder:
+    image: docker:24.0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      REGISTRY_TOKEN: s3cr3t
+`,
+    },
   ],
   k8s: [
     {
@@ -72,6 +94,20 @@ spec:
       containers:
         - name: api
           image: myapp:latest
+`,
+    },
+    {
+      id: "service",
+      labelKey: "exampleK8sService",
+      text: `apiVersion: v1
+kind: Service
+metadata:
+  name: api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
 `,
     },
   ],
@@ -100,6 +136,16 @@ test:
     - if: $CI_COMMIT_BRANCH == "main"
 `,
     },
+    {
+      id: "gitlab-curl",
+      labelKey: "exampleGitlabCurl",
+      text: `lint:
+  image: curlimages/curl:8.5.0
+  script:
+    - curl -fsSL https://example.com/install.sh | bash
+  allow_failure: true
+`,
+    },
   ],
   github: [
     {
@@ -116,6 +162,21 @@ jobs:
       - uses: actions/checkout@v4
       - run: npm ci
       - run: npm test
+`,
+    },
+    {
+      id: "github-secret",
+      labelKey: "exampleGithubSecret",
+      text: `name: Deploy
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "token=\${{ secrets.DEPLOY_TOKEN }}"
 `,
     },
   ],

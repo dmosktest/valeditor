@@ -100,6 +100,24 @@ function checkWorkload(doc: Record<string, unknown>, issues: LintIssue[], nextId
           code: "k8sNoResources",
           detail: `${name}/${cname}`,
         });
+      } else {
+        const res = c.resources as Record<string, unknown>;
+        if (!isRecord(res.requests)) {
+          issues.push({
+            id: nextId(),
+            severity: "info",
+            code: "k8sNoRequests",
+            detail: `${name}/${cname}`,
+          });
+        }
+        if (!isRecord(res.limits)) {
+          issues.push({
+            id: nextId(),
+            severity: "info",
+            code: "k8sNoLimits",
+            detail: `${name}/${cname}`,
+          });
+        }
       }
       const sc = isRecord(c.securityContext) ? c.securityContext : null;
       if (sc?.privileged === true) {
@@ -107,6 +125,38 @@ function checkWorkload(doc: Record<string, unknown>, issues: LintIssue[], nextId
           id: nextId(),
           severity: "warning",
           code: "k8sPrivileged",
+          detail: `${name}/${cname}`,
+        });
+      }
+      if (sc?.runAsNonRoot !== true) {
+        issues.push({
+          id: nextId(),
+          severity: "info",
+          code: "k8sNoRunAsNonRoot",
+          detail: `${name}/${cname}`,
+        });
+      }
+      if (sc?.readOnlyRootFilesystem !== true) {
+        issues.push({
+          id: nextId(),
+          severity: "info",
+          code: "k8sNoReadOnlyRoot",
+          detail: `${name}/${cname}`,
+        });
+      }
+      if (c.imagePullPolicy === "Always") {
+        issues.push({
+          id: nextId(),
+          severity: "info",
+          code: "k8sImagePullAlways",
+          detail: `${name}/${cname}`,
+        });
+      }
+      if (!c.livenessProbe && !c.readinessProbe && kind === "Deployment") {
+        issues.push({
+          id: nextId(),
+          severity: "info",
+          code: "k8sNoProbes",
           detail: `${name}/${cname}`,
         });
       }
@@ -119,6 +169,21 @@ function checkWorkload(doc: Record<string, unknown>, issues: LintIssue[], nextId
         code: "k8sHostNetwork",
         detail: name,
       });
+    }
+  }
+
+  if (kind === "Service") {
+    const selector = spec && isRecord(spec.selector) ? spec.selector : null;
+    if (!selector || Object.keys(selector).length === 0) {
+      const svcType = typeof spec?.type === "string" ? spec.type : "ClusterIP";
+      if (svcType !== "ExternalName") {
+        issues.push({
+          id: nextId(),
+          severity: "warning",
+          code: "k8sServiceNoSelector",
+          detail: name,
+        });
+      }
     }
   }
 }

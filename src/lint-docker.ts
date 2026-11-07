@@ -31,6 +31,7 @@ function lintDockerfile(raw: string, nextId: () => number): LintResult {
   let hasFrom = false;
   let lastUser: string | null = null;
   let aptWithoutClean = false;
+  let hasHealthcheck = false;
 
   for (let i = 0; i < lines.length; i++) {
     const lineNo = i + 1;
@@ -100,6 +101,10 @@ function lintDockerfile(raw: string, nextId: () => number): LintResult {
       lastUser = trimmed.slice(4).trim();
     }
 
+    if (name === "HEALTHCHECK") {
+      hasHealthcheck = true;
+    }
+
     if (name === "ENV" || name === "ARG") {
       if (/(PASSWORD|SECRET|TOKEN|API[_-]?KEY)\s*=/i.test(trimmed)) {
         issues.push({
@@ -121,6 +126,13 @@ function lintDockerfile(raw: string, nextId: () => number): LintResult {
       id: nextId(),
       severity: "info",
       code: "dfRootUser",
+    });
+  }
+  if (!hasHealthcheck && hasFrom) {
+    issues.push({
+      id: nextId(),
+      severity: "info",
+      code: "dfNoHealthcheck",
     });
   }
   void aptWithoutClean;
@@ -224,6 +236,59 @@ function lintCompose(raw: string, nextId: () => number): LintResult {
             });
             break;
           }
+        }
+      }
+      if (!("healthcheck" in svc)) {
+        issues.push({
+          id: nextId(),
+          severity: "info",
+          code: "composeNoHealthcheck",
+          detail: name,
+        });
+      }
+      if (!("restart" in svc)) {
+        issues.push({
+          id: nextId(),
+          severity: "info",
+          code: "composeNoRestart",
+          detail: name,
+        });
+      }
+      const volumes = svc.volumes;
+      if (Array.isArray(volumes)) {
+        for (const vol of volumes) {
+          const s = typeof vol === "string" ? vol : isRecord(vol) ? String(vol.source ?? vol.type ?? "") : "";
+          if (/docker\.sock/i.test(s)) {
+            issues.push({
+              id: nextId(),
+              severity: "warning",
+              code: "composeDockerSock",
+              detail: name,
+            });
+            break;
+          }
+        }
+      }
+      const env = svc.environment;
+      const envEntries: string[] = [];
+      if (Array.isArray(env)) {
+        for (const item of env) {
+          if (typeof item === "string") envEntries.push(item);
+        }
+      } else if (isRecord(env)) {
+        for (const [k, v] of Object.entries(env)) {
+          envEntries.push(`${k}=${String(v ?? "")}`);
+        }
+      }
+      for (const entry of envEntries) {
+        if (/(PASSWORD|SECRET|TOKEN|API[_-]?KEY)\s*=/i.test(entry)) {
+          issues.push({
+            id: nextId(),
+            severity: "warning",
+            code: "composeSecretEnv",
+            detail: name,
+          });
+          break;
         }
       }
     }

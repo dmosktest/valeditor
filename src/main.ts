@@ -1,20 +1,22 @@
 import "./style.css";
 import { EXAMPLES, type TabId } from "./examples";
+import { downloadDevopsPdf } from "./devops-pdf";
+import { buildAiBriefMarkdown, buildRulesMarkdown } from "./docs-pack";
 import { detectLocale, t, type MessageKey } from "./i18n";
-import { lintDocker, type DockerMode } from "./lint-docker";
-import { lintGithubActions } from "./lint-github";
-import { lintGitlabCi } from "./lint-gitlab";
+import { type DockerMode } from "./lint-docker";
 import {
-  lintJsonYaml,
   type LintFormatMode,
   type LintIssue,
   type LintResult,
 } from "./lint-json-yaml";
-import { lintKubernetes } from "./lint-k8s";
 import { registerServiceWorker } from "./register-sw";
+import { ruleCopy } from "./rule-catalog";
+import { runLint as runLintShared } from "./run-lint";
 import { findSecretHints } from "./secrets";
 import type { Locale } from "./site-config";
 import yaml from "js-yaml";
+
+const APP_VERSION = "1.2.0";
 
 export type { TabId };
 
@@ -175,17 +177,53 @@ function severityLabel(severity: LintIssue["severity"]): string {
   return t(state.locale, "severityInfo");
 }
 
-function issueMessage(issue: LintIssue): string {
-  const key = ISSUE_KEYS[issue.code] ?? "issueJsonSyntax";
-  return format(t(state.locale, key), {
-    detail: issue.detail ?? "",
-    count: issue.detail ?? "",
+function issueDetailSuffix(issue: LintIssue): string {
+  if (!issue.detail) return "";
+  const key = ISSUE_KEYS[issue.code];
+  if (!key) return ` (${issue.detail})`;
+  const templated = format(t(state.locale, key), {
+    detail: issue.detail,
+    count: issue.detail,
   });
+  if (templated.includes(issue.detail)) return "";
+  return ` (${issue.detail})`;
+}
+
+function editorTextarea(): HTMLTextAreaElement {
+  return byId<HTMLTextAreaElement>("text-input");
+}
+
+function lineCount(text: string): number {
+  if (!text) return 1;
+  let n = 1;
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) === 10) n += 1;
+  }
+  return n;
+}
+
+function refreshLineNumbers(): void {
+  const ta = editorTextarea();
+  const gutter = byId("line-numbers");
+  const count = lineCount(ta.value);
+  const cur = gutter.dataset.lines ? Number(gutter.dataset.lines) : 0;
+  if (cur !== count) {
+    gutter.dataset.lines = String(count);
+    let body = "1";
+    for (let i = 2; i <= count; i++) body += `\n${i}`;
+    gutter.textContent = body;
+  }
+  gutter.scrollTop = ta.scrollTop;
+}
+
+function setEditorText(text: string): void {
+  editorTextarea().value = text;
+  refreshLineNumbers();
 }
 
 function jumpToIssue(issue: LintIssue): void {
   if (issue.line == null) return;
-  const ta = byId<HTMLTextAreaElement>("text-input");
+  const ta = editorTextarea();
   const lines = ta.value.split(/\n/);
   let start = 0;
   for (let i = 0; i < issue.line - 1 && i < lines.length; i++) {
@@ -199,6 +237,7 @@ function jumpToIssue(issue: LintIssue): void {
   ta.setSelectionRange(from, to);
   const lineHeight = ta.scrollHeight / Math.max(lines.length, 1);
   ta.scrollTop = Math.max(0, (issue.line - 3) * lineHeight);
+  refreshLineNumbers();
 }
 
 function renderIssue(issue: LintIssue): HTMLLIElement {
@@ -241,11 +280,26 @@ function renderIssue(issue: LintIssue): HTMLLIElement {
     head.append(pos);
   }
 
-  const msg = document.createElement("p");
-  msg.className = "issue-msg";
-  msg.textContent = issueMessage(issue);
+  const copy = ruleCopy(issue.code, state.locale);
+  const title = document.createElement("p");
+  title.className = "issue-title";
+  title.textContent = `${copy.title}${issueDetailSuffix(issue)}`;
 
-  li.append(head, msg);
+  const why = document.createElement("p");
+  why.className = "issue-why";
+  why.textContent = copy.why;
+
+  const fix = document.createElement("p");
+  fix.className = "issue-fix";
+  fix.textContent = `${t(state.locale, "fixLabel")}: ${copy.fix}`;
+
+  const more = document.createElement("a");
+  more.className = "issue-more";
+  more.href = `/${state.locale}/errors/#${issue.code}`;
+  more.textContent = t(state.locale, "handbookLink");
+  more.addEventListener("click", (event) => event.stopPropagation());
+
+  li.append(head, title, why, fix, more);
   return li;
 }
 
@@ -270,15 +324,34 @@ function showDetected(result: LintResult): void {
 }
 
 function runCurrentLint(text: string): LintResult {
-  if (state.tab === "json-yaml") return lintJsonYaml(text, state.jsonMode);
-  if (state.tab === "docker") return lintDocker(text, state.dockerMode);
-  if (state.tab === "k8s") return lintKubernetes(text);
-  if (state.tab === "gitlab") return lintGitlabCi(text);
-  return lintGithubActions(text);
+  return runLintShared(state.tab, text, {
+    jsonMode: state.jsonMode,
+    dockerMode: state.dockerMode,
+  });
+}
+
+function downloadText(filename: string, content: string): void {
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function issueStatusLine(issue: LintIssue): string {
+  const title = ruleCopy(issue.code, state.locale).title;
+  if (issue.line == null) return title;
+  const where = format(t(state.locale, "position"), {
+    line: issue.line,
+    column: issue.column ?? 1,
+  });
+  return `${where}: ${title}`;
 }
 
 function runLint(showEmptyError: boolean): void {
-  const text = byId<HTMLTextAreaElement>("text-input").value;
+  const text = editorTextarea().value;
   syncHash();
   if (!text.trim()) {
     hideResults();
@@ -297,13 +370,15 @@ function runLint(showEmptyError: boolean): void {
 
   if (result.ok && result.issues.length === 0) {
     setStatus(t(state.locale, "parseOk"));
+  } else if (result.issues[0]) {
+    setStatus(issueStatusLine(result.issues[0]), !result.ok);
   } else {
     setStatus("");
   }
 }
 
 function applyFormat(): void {
-  const text = byId<HTMLTextAreaElement>("text-input").value;
+  const text = editorTextarea().value;
   if (!text.trim()) {
     setStatus(t(state.locale, "emptyInput"), true);
     return;
@@ -316,10 +391,13 @@ function applyFormat(): void {
     list.replaceChildren(...result.issues.map(renderIssue));
     byId("results").hidden = false;
     byId("download").hidden = true;
-    setStatus(result.issues[0] ? issueMessage(result.issues[0]) : t(state.locale, "emptyInput"), true);
+    setStatus(
+      result.issues[0] ? issueStatusLine(result.issues[0]) : t(state.locale, "emptyInput"),
+      true,
+    );
     return;
   }
-  byId<HTMLTextAreaElement>("text-input").value = result.pretty;
+  setEditorText(result.pretty);
   runLint(false);
 }
 
@@ -376,13 +454,15 @@ function convertJsonYaml(to: "json" | "yaml"): void {
       value = docs.length === 1 ? docs[0] : docs;
     }
     if (to === "json") {
-      byId<HTMLTextAreaElement>("text-input").value = `${JSON.stringify(value, null, 2)}\n`;
+      setEditorText(`${JSON.stringify(value, null, 2)}\n`);
       state.jsonMode = "json";
     } else {
       const docs = Array.isArray(value) ? value : [value];
-      byId<HTMLTextAreaElement>("text-input").value = docs
-        .map((doc) => yaml.dump(doc, { lineWidth: 100, noRefs: true, sortKeys: false }))
-        .join("---\n");
+      setEditorText(
+        docs
+          .map((doc) => yaml.dump(doc, { lineWidth: 100, noRefs: true, sortKeys: false }))
+          .join("---\n"),
+      );
       state.jsonMode = "yaml";
     }
     syncFormatSelect();
@@ -444,7 +524,7 @@ function renderExamples(): void {
     btn.className = "btn btn-small example-btn";
     btn.textContent = t(state.locale, ex.labelKey as MessageKey);
     btn.addEventListener("click", () => {
-      byId<HTMLTextAreaElement>("text-input").value = ex.text;
+      setEditorText(ex.text);
       runLint(false);
     });
     root.append(btn);
@@ -498,6 +578,14 @@ function applyStaticCopy(): void {
   byId("tab-github").textContent = t(state.locale, "tabGithub");
   byId("format-label").textContent = t(state.locale, "formatModeLabel");
   byId("rl-tip").innerHTML = t(state.locale, "tipHtml");
+  byId("docs-title").textContent = t(state.locale, "docsTitle");
+  byId("docs-lead").textContent = t(state.locale, "docsLead");
+  byId("docs-devops-pdf").textContent = t(state.locale, "docsDevopsPdf");
+  byId("docs-rules").textContent = t(state.locale, "docsRules");
+  byId("docs-ai").textContent = t(state.locale, "docsAi");
+  const handbook = byId<HTMLAnchorElement>("handbook-nav");
+  handbook.href = `/${state.locale}/errors/`;
+  handbook.textContent = t(state.locale, "handbookNav");
   syncFormatSelect();
   renderExamples();
   byId("tab-soon").hidden = true;
@@ -523,7 +611,7 @@ function bindUi(): void {
   byId("lint").addEventListener("click", () => runLint(true));
   byId("format").addEventListener("click", () => applyFormat());
   byId("clear").addEventListener("click", () => {
-    byId<HTMLTextAreaElement>("text-input").value = "";
+    setEditorText("");
     hideResults();
     setStatus("");
     syncHash();
@@ -532,16 +620,36 @@ function bindUi(): void {
     void copyShare();
   });
   byId("download").addEventListener("click", () => downloadPretty());
+  byId("docs-devops-pdf").addEventListener("click", () => {
+    void downloadDevopsPdf(state.locale === "ru" ? "ru" : "en", APP_VERSION).catch(() => {
+      setStatus(t(state.locale, "copyError"), true);
+    });
+  });
+  byId("docs-rules").addEventListener("click", () => {
+    downloadText(
+      `valeditor-rules.${state.locale === "ru" ? "ru" : "en"}.md`,
+      buildRulesMarkdown(state.locale === "ru" ? "ru" : "en", APP_VERSION),
+    );
+  });
+  byId("docs-ai").addEventListener("click", () => {
+    downloadText(
+      `valeditor-ai-brief.${state.locale === "ru" ? "ru" : "en"}.md`,
+      buildAiBriefMarkdown(state.locale === "ru" ? "ru" : "en", APP_VERSION),
+    );
+  });
   byId("to-json").addEventListener("click", () => convertJsonYaml("json"));
   byId("to-yaml").addEventListener("click", () => convertJsonYaml("yaml"));
 
-  const input = byId<HTMLTextAreaElement>("text-input");
+  const input = editorTextarea();
+  input.addEventListener("input", () => refreshLineNumbers());
+  input.addEventListener("scroll", () => refreshLineNumbers());
   input.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
       event.preventDefault();
       runLint(true);
     }
   });
+  refreshLineNumbers();
 }
 
 function boot(): void {
@@ -558,8 +666,10 @@ function boot(): void {
   bindLangMenu();
   bindUi();
   if (fromHash.text) {
-    byId<HTMLTextAreaElement>("text-input").value = fromHash.text;
+    setEditorText(fromHash.text);
     runLint(false);
+  } else {
+    refreshLineNumbers();
   }
   void registerServiceWorker();
 }

@@ -1,25 +1,35 @@
 # valeditor
 
-Browser-only DevOps config linter: JSON/YAML, Dockerfile, Compose, Kubernetes, GitLab CI, and GitHub Actions. Your text never leaves the tab.
+Browser DevOps config linter plus an HTTP API for CI: JSON/YAML, Dockerfile/Compose, Kubernetes, GitLab CI, and GitHub Actions.
 
-**License:** MIT
+**License:** MIT  
+**Live:** https://valeditor.dmosk.net/
 
-## Features (v1.0.0)
+## Features (v1.2.0)
 
-- Tabs for JSON/YAML, Dockerfile/Compose, Kubernetes, GitLab CI, GitHub Actions
-- YAML traps (Norway / yes|no|on, tabs), click-to-line, one-click examples, JSON ⇄ YAML
-- Share via URL `#` fragment with a secret-hint warning before copy
-- Heuristic findings — not a drop-in replacement for Hadolint, actionlint, or kubeconform
+- Config editor with line numbers; findings and status show line/column
+- Findings sorted error → warning → info (then by line)
+- Handbook link highlights the matching rule entry
+- Heuristic tabs with deeper best-practice checks and more examples
+- Findings include title / why / fix; error handbook at `/errors/` (linked at the bottom)
+- DevOps PDF with GitLab / GitHub Actions / Jenkins API samples; Markdown brief for AI
+- `POST /api/v1/lint` for pipelines (`fail_on` → HTTP 422); request bodies are not logged
+- Not a full Hadolint / actionlint / kubeconform replacement
+
+## CI example
+
+```bash
+curl -sS -f -X POST https://valeditor.dmosk.net/api/v1/lint \
+  -H 'content-type: application/json' \
+  -d "{\"tab\":\"k8s\",\"text\":$(jq -Rs . < deploy.yaml),\"fail_on\":\"warning\",\"locale\":\"en\"}"
+```
 
 ## Develop
 
 ```bash
 npm install
 npm run dev
-```
-
-```bash
 npm run build
 ```
 
-Production deploy and Docker live in the private `mksrv` monorepo — this mirror is application source only.
+Docker/Compose and stand config live in the private `mksrv` monorepo.

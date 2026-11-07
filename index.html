@@ -17,7 +17,7 @@
     <title>valeditor — линтер Dockerfile, Compose, Kubernetes и CI</title>
     <meta
       name="description"
-      content="Онлайн-линтер JSON/YAML, Dockerfile, Compose, Kubernetes, GitLab CI и GitHub Actions в браузере. Текст на сервер не уходит."
+      content="Линтер DevOps-конфигов с справочником ошибок и HTTP API для CI. JSON/YAML, Docker, Kubernetes, GitLab CI, GitHub Actions."
     />
     <link rel="canonical" href="https://valeditor.dmosk.net/ru/" />
     <link rel="alternate" hreflang="ru" href="https://valeditor.dmosk.net/ru/" />
@@ -28,7 +28,7 @@
     <meta property="og:title" content="valeditor — линтер Dockerfile, Compose, Kubernetes и CI" />
     <meta
       property="og:description"
-      content="Онлайн-линтер JSON/YAML, Dockerfile, Compose, Kubernetes, GitLab CI и GitHub Actions в браузере. Текст на сервер не уходит."
+      content="Линтер DevOps-конфигов с справочником ошибок и HTTP API для CI. JSON/YAML, Docker, Kubernetes, GitLab CI, GitHub Actions."
     />
     <meta property="og:locale" content="ru_RU" />
     <meta property="og:locale:alternate" content="en_US" />
@@ -90,9 +90,9 @@
         </div>
       </div>
 
-      <h1 id="heading">Линтер DevOps-конфигов в браузере</h1>
+      <h1 id="heading">Линтер DevOps-конфигов и API для CI</h1>
       <p class="lead" id="lead">
-        JSON/YAML, Dockerfile, Compose, Kubernetes, GitLab CI и GitHub Actions — эвристики локально. Это не замена CI-линтеров.
+        JSON/YAML, Docker, Kubernetes и CI — эвристики с объяснениями. Справочник ошибок, docs для DevOps/ИИ, валидация из пайплайна через API.
       </p>
       <p class="tip" id="rl-tip"></p>
 
@@ -132,7 +132,8 @@
           <span class="format-detected" id="format-detected" hidden></span>
         </div>
         <label class="field-label" id="input-label" for="text-input">Конфиг</label>
-        <div class="field-wrap">
+        <div class="field-wrap code-editor">
+          <pre class="line-numbers" id="line-numbers" aria-hidden="true">1</pre>
           <textarea
             id="text-input"
             class="text-input"
@@ -165,6 +166,28 @@
           <button type="button" class="btn btn-secondary" id="download" hidden>Скачать</button>
         </div>
         <ul class="issues" id="issues"></ul>
+      </section>
+
+      <section class="panel docs-panel" id="docs-panel" aria-labelledby="docs-title">
+        <h2 id="docs-title">Документация API и справочник</h2>
+        <p class="docs-lead" id="docs-lead">
+          Здесь материалы для подключения проверки в CI и разбора кодов замечаний.
+          PDF для DevOps — как вызвать API из GitLab, GitHub Actions и Jenkins.
+          Markdown brief — короткий каталог правил для ИИ и промптов.
+          Отдельный справочник ошибок — почему ругается инструмент и что поставить вместо.
+        </p>
+        <div class="docs-actions">
+          <button type="button" class="btn" id="docs-devops-pdf">
+            PDF для DevOps (GitLab / GitHub / Jenkins)
+          </button>
+          <button type="button" class="btn btn-secondary" id="docs-ai">
+            Markdown brief для ИИ
+          </button>
+          <button type="button" class="btn btn-secondary" id="docs-rules">
+            Справочник правил (.md)
+          </button>
+          <a class="docs-handbook-link" href="/ru/errors/" id="handbook-nav">Справочник ошибок</a>
+        </div>
       </section>
 
       <article class="seo" id="seo-root"></article>

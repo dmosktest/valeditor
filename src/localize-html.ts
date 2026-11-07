@@ -163,6 +163,16 @@ export function localizeIndexHtml(html: string, locale: Locale): string {
   out = replaceTagContent(out, "button", "download", t(locale, "download"));
   out = replaceTagContent(out, "button", "to-json", t(locale, "toJson"));
   out = replaceTagContent(out, "button", "to-yaml", t(locale, "toYaml"));
+  out = replaceTagContent(out, "h2", "docs-title", t(locale, "docsTitle"));
+  out = replaceTagContent(out, "p", "docs-lead", t(locale, "docsLead"));
+  out = replaceTagContent(out, "button", "docs-devops-pdf", t(locale, "docsDevopsPdf"));
+  out = replaceTagContent(out, "button", "docs-rules", t(locale, "docsRules"));
+  out = replaceTagContent(out, "button", "docs-ai", t(locale, "docsAi"));
+  out = replaceTagContent(out, "a", "handbook-nav", t(locale, "handbookNav"));
+  out = out.replace(
+    /(<a\b[^>]*\bid=["']handbook-nav["'][^>]*\bhref=)(["'])(.*?)(\2)/i,
+    `$1$2/${locale}/errors/$2`,
+  );
   out = replaceTagContent(out, "span", "examples-label", t(locale, "examplesLabel"));
   out = replaceTagContent(out, "option", "opt-auto", t(locale, "formatAuto"));
   out = replaceTagContent(out, "option", "opt-json", t(locale, "formatJson"));

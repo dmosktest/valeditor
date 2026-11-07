@@ -53,6 +53,18 @@ export function lintGithubActions(input: string): LintResult {
     issues.push({ id: nextId(), severity: "error", code: "ghMissingOn" });
   }
 
+  const onVal =
+    root.on ??
+    (Reflect.ownKeys(root).includes(true as unknown as string)
+      ? (root as Record<PropertyKey, unknown>)[true as unknown as string]
+      : undefined);
+  const onText = JSON.stringify(onVal ?? "");
+  const hasPrTarget = /pull_request_target/i.test(onText);
+
+  if (!("permissions" in root)) {
+    issues.push({ id: nextId(), severity: "info", code: "ghNoPermissions" });
+  }
+
   const jobs = root.jobs;
   if (!isRecord(jobs) || Object.keys(jobs).length === 0) {
     issues.push({ id: nextId(), severity: "error", code: "ghNoJobs" });
@@ -85,6 +97,7 @@ export function lintGithubActions(input: string): LintResult {
             detail: jobName,
           });
         }
+        let checksOutPr = false;
         steps.forEach((step, idx) => {
           if (!isRecord(step)) return;
           const hasRun = typeof step.run === "string";
@@ -106,8 +119,33 @@ export function lintGithubActions(input: string): LintResult {
                 detail: step.uses,
               });
             }
+            if (/actions\/checkout@/i.test(step.uses)) {
+              const withBlock = isRecord(step.with) ? step.with : null;
+              const ref = withBlock && typeof withBlock.ref === "string" ? withBlock.ref : "";
+              if (/pull_request|github\.event\.pull_request/i.test(ref) || !ref) {
+                checksOutPr = true;
+              }
+            }
+          }
+          if (hasRun && typeof step.run === "string") {
+            if (/echo\s+.*\$\{\{\s*secrets\./i.test(step.run) || /printf\s+.*\$\{\{\s*secrets\./i.test(step.run)) {
+              issues.push({
+                id: nextId(),
+                severity: "warning",
+                code: "ghEchoSecret",
+                detail: `${jobName}#${idx + 1}`,
+              });
+            }
           }
         });
+        if (hasPrTarget && checksOutPr) {
+          issues.push({
+            id: nextId(),
+            severity: "warning",
+            code: "ghPrTargetRisky",
+            detail: jobName,
+          });
+        }
       } else if (!job.uses) {
         issues.push({
           id: nextId(),

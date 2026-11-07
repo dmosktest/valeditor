@@ -38,16 +38,34 @@ export function withBom(
   return [{ id: nextId(), severity: "warning", code: "bom" }, ...issues];
 }
 
+export function severityOrder(severity: IssueSeverity): number {
+  if (severity === "error") return 0;
+  if (severity === "warning") return 1;
+  return 2;
+}
+
+export function sortIssues(issues: LintIssue[]): LintIssue[] {
+  return [...issues].sort((a, b) => {
+    const bySev = severityOrder(a.severity) - severityOrder(b.severity);
+    if (bySev !== 0) return bySev;
+    const la = a.line ?? Number.MAX_SAFE_INTEGER;
+    const lb = b.line ?? Number.MAX_SAFE_INTEGER;
+    if (la !== lb) return la - lb;
+    return a.id - b.id;
+  });
+}
+
 export function finalize(
   format: LintResult["format"],
   issues: LintIssue[],
   pretty: string,
   documentCount: number,
 ): LintResult {
+  const sorted = sortIssues(issues);
   return {
     format,
-    ok: issues.every((i) => i.severity !== "error"),
-    issues,
+    ok: sorted.every((i) => i.severity !== "error"),
+    issues: sorted,
     pretty,
     documentCount,
   };
